@@ -165,10 +165,23 @@ int try_mount(const char* device, const char* mount_point, const char* fs_type, 
 }
 
 int ensure_path_mounted(const char* path) {
+    struct stat st, file_info;
     Volume* v = volume_for_path(path);
     if (v == NULL) {
-        LOGE("unknown volume for path [%s]\n", path);
-        return -1;
+       if (strlen("/sdcard")) {
+          if (0 != stat("/data/media", &st)) {
+	     __system("mount /data");
+             if (0 != stat("/sdcard", &st) && 0 != lstat("/sdcard", &file_info)) {
+                symlink("/data/media", "/sdcard");
+             } else {
+                rmdir("/sdcard");
+                symlink("/data/media", "/sdcard");
+             }
+          }
+         return 0;
+       }
+      LOGE("unknown volume for path [%s]\n", path);
+      return -1;
     }
     if (strcmp(v->fs_type, "ramdisk") == 0) {
         // the ramdisk is always mounted.
@@ -227,13 +240,21 @@ int ensure_path_mounted(const char* path) {
 }
 
 int ensure_path_unmounted(const char* path) {
+    struct stat st;
     Volume* v = volume_for_path(path);
     if (v == NULL) {
+        if (strlen("/sdcard")) {
+           __system("umount /data");
+	   return 0;
+        }
         LOGE("unknown volume for path [%s]\n", path);
         return -1;
     }
     if (strcmp(v->fs_type, "ramdisk") == 0) {
         // the ramdisk is always mounted; you can't unmount it.
+        return -1;
+    }
+    if (strcmp(v->mount_point, "/data") == 0 && 0 == stat("/data/media", &st) && 0 == stat("/sdcard", &st)) {
         return -1;
     }
 
