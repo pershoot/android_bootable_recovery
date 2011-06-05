@@ -149,7 +149,7 @@ int nandroid_backup_partition_extended(const char* backup_path, const char* moun
     int ret = 0;
     char* name = basename(mount_point);
 
-    struct stat file_info;
+    struct stat file_info, st;
     mkyaffs2image_callback callback = NULL;
     if (0 != stat("/sdcard/clockworkmod/.hidenandroidprogress", &file_info)) {
         callback = yaffs_callback;
@@ -163,8 +163,14 @@ int nandroid_backup_partition_extended(const char* backup_path, const char* moun
     compute_directory_stats(mount_point);
     char tmp[PATH_MAX];
     sprintf(tmp, "%s/%s.img", backup_path, name);
-    nandroid_backup_handler backup_handler = get_backup_handler(backup_path);
-    ret = backup_handler(mount_point, tmp, callback);
+    if (0 != stat("/data/media", &st)) {
+       nandroid_backup_handler backup_handler = get_backup_handler(backup_path);
+       ret = backup_handler(mount_point, tmp, callback);
+    } else {
+       nandroid_backup_handler backup_handler = get_backup_handler("/data/media/clockworkmod/backup");
+       ret = backup_handler(mount_point, tmp, callback);
+    }
+
     if (umount_when_finished) {
         ensure_path_unmounted(mount_point);
     }
@@ -351,7 +357,7 @@ int nandroid_restore_partition_extended(const char* backup_path, const char* mou
     
     char tmp[PATH_MAX];
     sprintf(tmp, "%s/%s.img", backup_path, name);
-    struct stat file_info;
+    struct stat file_info, st;
     if (0 != (ret = statfs(tmp, &file_info))) {
         ui_print("%s.img not found. Skipping restore of %s.\n", name, mount_point);
         return 0;
@@ -381,10 +387,18 @@ int nandroid_restore_partition_extended(const char* backup_path, const char* mou
         return ret;
     }
     
-    nandroid_restore_handler restore_handler = get_restore_handler(backup_path);
-    if (0 != (ret = restore_handler(tmp, mount_point, callback))) {
-        ui_print("Error while restoring %s!\n", mount_point);
-        return ret;
+    if (0 != stat("/data/media", &st)) {
+       nandroid_restore_handler restore_handler = get_restore_handler(backup_path);
+       if (0 != (ret = restore_handler(tmp, mount_point, callback))) {
+           ui_print("Error while restoring %s!\n", mount_point);
+           return ret;
+       }
+    } else {
+       nandroid_restore_handler restore_handler = get_restore_handler("/data/media/clockworkmod/backup");
+       if (0 != (ret = restore_handler(tmp, mount_point, callback))) {
+           ui_print("Error while restoring %s!\n", mount_point);
+           return ret;
+       }
     }
 
     if (umount_when_finished) {
